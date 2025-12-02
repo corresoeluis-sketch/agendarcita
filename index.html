@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Reservar cita</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FullCalendar (opcional, si quieres calendario visual) -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <style>
+    body{background:#f3f4f6}
+    .fc { background: white; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body class="p-3">
+  <div class="container">
+    <h1 class="mb-3">Reservar cita</h1>
+
+    <div class="row">
+      <div class="col-md-8">
+        <div id="calendar" class="mb-3"></div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card p-3">
+          <h5>Horarios disponibles</h5>
+          <ul id="slotList" class="list-group"></ul>
+        </div>
+      </div>
+    </div>
+
+    <p class="mt-3">Si deseas, <a href="/login">inicia sesión</a> (sólo para el admin).</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script>
+    async function loadSlots(){
+      const res = await fetch('/api/slots');
+      const data = await res.json();
+      // popular lista
+      const list = document.getElementById('slotList');
+      list.innerHTML = '';
+      const events = [];
+      data.forEach(s => {
+        if (s.available){
+          const display = `${s.date} ${s.time}` + (s.note ? ` — ${s.note}` : '');
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.innerHTML = `<div>${display}</div><a class="btn btn-sm btn-primary" href="/book/${s.id}">Reservar</a>`;
+          list.appendChild(li);
+        }
+        // para el calendario, mostramos disponibles en verde y ocupados en rojo
+        events.push({
+          title: s.available ? 'Disponible' : 'Ocupado',
+          start: s.date + 'T' + (s.time.length===5 ? s.time + ':00' : s.time),
+          allDay: false,
+          backgroundColor: s.available ? '#2ecc71' : '#e74c3c',
+          borderColor: s.available ? '#2ecc71' : '#e74c3c'
+        });
+      });
+
+      // inicializar FullCalendar
+      const calendarEl = document.getElementById('calendar');
+      calendarEl.innerHTML = '';
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+        events: events,
+        eventClick: function(info){
+          // cuando clic en un evento disponible, buscar slot exacto y redirigir a /book
+          const start = info.event.start;
+          const date = start.toISOString().slice(0,10);
+          const time = start.toTimeString().slice(0,5);
+          // buscar slot con esa fecha+hora en el array
+          const slot = data.find(s => s.date===date && (s.time.length===5 ? s.time : s.time.slice(0,5))===time && s.available);
+          if (slot){
+            window.location.href = '/book/' + slot.id;
+          } else {
+            alert('Horario no disponible para reservar.');
+          }
+        }
+      });
+      calendar.render();
+    }
+
+    loadSlots();
+  </script>
+</body>
+</html>
